@@ -1,0 +1,94 @@
+import requests
+import pandas as pd
+from requests.auth import HTTPBasicAuth
+from datetime import datetime
+import schedule
+import time
+import datetime as DT
+import sys
+
+# Prior to running download and install 
+OracleAPI_URL='https://api.oracleinfinity.io/v1/account/8b70855c24194bfe45f406c2b214c35c/dataexport/a27f41454443405386cf42b5ad448c7a/data'
+
+# Function to download data from the API
+def download_data(api_url, outputFileName, startDt="", endDt="", basicAuth=None):
+	response = None;
+ 
+	try:
+		session = requests.Session()
+		headers = {'Authorization': 'Basic YWtlZGFyQGhyc2EuZ292OkQxc2M1NSFvbg=='}
+
+		apiEndPoint = api_url + "?begin=" + startDt + "/00&end=" + startDt + "/23&timezone=America/New_York&format=csv"
+		# print( "API endpoint: " + apiEndPoint)
+
+		response = session.get(apiEndPoint, headers=headers)
+		response.raise_for_status()
+
+        # Ensure response encoding is set to UTF-8
+		response.encoding = 'utf-8'  # Forcing UTF-8 encoding
+
+        # Checking if the response is in text/csv format
+		if 'text/csv' in response.headers.get('Content-Type', '') or response.text.startswith('Date, '):
+			with open(outputFileName, 'w', encoding='utf-8') as file:
+				file.write(response.text)
+			print(f"Data downloaded and saved to {outputFileName} at {datetime.now()}")
+			return outputFileName
+		else:
+			raise ValueError("The response content is not in text/csv format.")
+
+	except requests.exceptions.RequestException as e:
+		print(f"Request error: {e}")
+	except Exception as e:
+		print(f"Error downloading data: {e}")
+  
+def processFile(fileNameIn, fileNameOut):
+    try:
+        pd.options.mode.copy_on_write = True
+        dataIn = pd.read_csv(fileNameIn, header=0, delimiter=",", quotechar='"')
+        cleanDF = dataIn.dropna().copy()
+
+        # Extracting the URI part from the URL
+        cleanDF['URI'] = cleanDF['Destination URL'].str.partition('/')[2]
+        
+        # Extracting the Domain part from the URL
+        #cleanDF['Domain1'] = cleanDF['Destination URL'].str.partition('/')[0]
+
+        # Extracting the Domain using split (only one delimiter argument and optional max split)
+        cleanDF['domain'] = cleanDF['Destination URL'].str.split('/').str[0] # type: ignore
+        
+        cleanDF.to_csv(fileNameOut, index=False)
+        #print(f"Processed data saved to {fileNameOut}")
+    except Exception as e:
+        print(f"Warning: {e}", sys.exc_info()[0])
+        
+if __name__ == '__main__':
+
+	date_param = '2024-05-27'
+	if date_param:
+		try:
+			target_date = DT.datetime.strptime(date_param, '%Y-%m-%d').date()
+		except ValueError:
+			print("Invalid Date format. Please use YYYY-MM-DD format.")
+			sys.exit(0)
+	else:
+		today = DT.date.today()
+		target_date = today - DT.timedelta(days=1)	
+	#today = DT.date.today()
+	#yesterday = today - DT.timedelta(days=1)
+	startDt=target_date.strftime('%Y/%m/%d')
+	startDtFileName=target_date.strftime('%Y-%m-%d')
+	endDt= startDt + "/23"
+	
+	outputFileExt=".csv"
+	outputFilePrefix="InfinityData_" + startDtFileName + "_" + startDtFileName
+	raw_ext="_raw"
+	outputFileName=outputFilePrefix + raw_ext + outputFileExt
+	
+	download_data(OracleAPI_URL, outputFileName, startDt, endDt)
+	
+	#if outputFileName:
+	#	print( "Intermediate OutputFileName:" + outputFileName)
+		
+	processFile( outputFileName, outputFilePrefix + outputFileExt)
+	
+	print( "Final OutputFileName:" + outputFilePrefix + outputFileExt)

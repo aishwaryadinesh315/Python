@@ -1,0 +1,154 @@
+import csv
+import datetime
+import socket
+import subprocess
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+from email import message
+import schedule
+from email.message import EmailMessage
+import ssl
+from smtplib import SMTP_SSL as SMTP
+import socket
+import time
+from apscheduler.schedulers.blocking import BlockingScheduler
+
+
+
+def read_servers_from_csv(file_path):
+    servers = []indu
+    with open(file_path, 'r') as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip header row
+        for row in reader:
+            if len(row) >= 2:  # Ensure there are at least two values in the row
+                servers.append(row)
+    return servers
+
+def ping_server(IP_Address, timeout=5):
+    if '::' in IP_Address:
+        IP_Address = IP_Address.split('::')[0]
+    # Ping the IP address to check the server's status
+    try:
+        # Run the ping command
+        result = subprocess.run(['ping', '-n', '1', IP_Address], capture_output=True, text=True, timeout=timeout)
+        
+        # Check the return code to determine if the ping was successful
+        if result.returncode == 0:
+            return True  # Server is up
+        else:
+            return False  # Server is down
+    except subprocess.TimeoutExpired:
+        return False  # Ping operation timed out
+
+def check_server_statuses(servers):
+    updated_servers = []
+    for server in servers:
+        server_name, IP_Address = server  # Extract server name and IP address
+#        if '::' in IP_Address:  # Filter out IPv6 addresses
+#            status = 'N/A'
+        if ping_server(IP_Address):
+            status = 'Up'
+        else:
+            status = 'Down'
+        updated_servers.append([server_name, IP_Address, status])
+    return updated_servers
+
+def check_server_statuses_1(servers):
+    updated_servers = []
+    for server in servers:
+        if len(server) >= 2:  # Check if server data contains at least two values
+            server_name = server[0]  # Extract server name
+            IP_Address = server[1] if len(server) >= 2 else None # Extract IP address if available
+#            if ip_address and '::' not in ip_address:  # Exclude IPv6 addresses
+            status = ping_server(IP_Address)
+            updated_servers.append((server_name, IP_Address, status))  # Append server name, IP address, and status
+        else:
+            pass  # Skip adding records with invalid data
+    return updated_servers
+
+
+def write_to_csv(servers, output_file):
+    with open(output_file, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['Server', 'IP Address', 'Status'])
+        writer.writerows(servers)
+
+
+def send_email(output_csv, recipients):
+    sender_email = 'hpenmetsa75@gmail.com'
+    recipients = ['HPenmetsa@hrsa.gov', 'HPenmetsa@hrsa.gov']
+    password = 'flsd lzbx ukcc zqns'
+    smtp_server = 'smtp.gmail.com'
+    port = 465
+
+#Construct the email message
+#    msg = EmailMessage()
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = ', '.join(recipients)
+    msg['Subject'] = "Please find attached the server status report"
+    body = "Please find attached the server status report."
+    msg.attach(MIMEText(body, 'plain'))
+#    msg.set_content(body)
+    context = ssl.create_default_context()
+
+# Attach the file
+    with open(output_csv, "rb") as file:
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(file.read())
+        encoders.encode_base64(part)
+        part.add_header(
+            "Content-Disposition",
+            f"attachment; filename= {output_csv}",
+        )
+        msg.attach(part)
+
+ # Connect to the SMTP server and send the emai
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
+#        server.starttls()
+        server.ehlo()
+        server.login(sender_email, password)
+        server.sendmail(sender_email, recipients, msg.as_string())
+
+def main():
+    input_csv = r"C:\Users\*\HDWoperations.csv"
+    output_csv = r"C:\Users\*\HDW_Server Status.csv"
+    
+    servers = read_servers_from_csv(input_csv)
+    updated_servers = check_server_statuses_1(servers)
+    write_to_csv(updated_servers, output_csv)
+    recipients = ['_@hr.gov', '_@hr.gov']
+    send_email(output_csv, recipients)
+
+
+if __name__ == '__main__':
+    main()
+
+# def main():
+#     # Your main function code here
+#     print("Executing main function...")
+
+# Set up scheduled task
+# scheduler = BlockingScheduler()
+# scheduler.add_job(main, 'cron', day_of_week='mon-fri', hour=17, minute=46)
+# scheduler.start()
+
+# #Scheduling script for everyday run
+# schedule.every().day.at("15:05:00").do(main)
+
+# Main loop to run the scheduled tasks
+# def main():
+#     # Your main function code here
+#     print("Executing main function...")
+
+# Set up scheduled task
+#schedule.every().day.at("17:25:00").do(main)
+
+# Run the scheduled tasks in the background
+# while True:
+#     schedule.run_pending()
+# #    time.sleep(1)  # Sleep for 1 second to avoid high CPU usage

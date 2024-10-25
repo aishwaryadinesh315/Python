@@ -1,0 +1,49 @@
+from office365.runtime.auth.authentication_context import AuthenticationContext
+from office365.sharepoint.client_context import ClientContext
+from office365.sharepoint.files.file import File
+import pandas as pd
+
+def fetch_excel_data(site_url, username, password, file_path):
+    try:
+        # Authenticate user
+        ctx_auth = AuthenticationContext(site_url)
+        if ctx_auth.acquire_token_for_user(username, password):
+            ctx = ClientContext(site_url, ctx_auth)
+            # Load the Excel file from SharePoint
+            file = File.open_binary(ctx, file_path)
+            response = file.download()
+            
+            # Read Excel content into DataFrame
+            df = pd.read_excel(response.content)
+            return df
+        else:
+            print("Failed to authenticate user.")
+            return None
+        
+    except Exception as e:
+        print(f"Error fetching Excel data: {e}")
+        return None
+
+def main():
+    # SharePoint site URL
+    site_url = "https://your-sharepoint-site.sharepoint.com/sites/your-site"
+    # SharePoint file path
+    file_path = "/sites/your-site/Shared Documents/YourFolder/YourExcelFile.xlsx"
+    # User credentials
+    username = "your_username@example.com"
+    password = "your_password"
+
+    # Fetch Excel data from SharePoint
+    excel_data = fetch_excel_data(site_url, username, password, file_path)
+
+    if excel_data is not None:
+        # Process the fetched data
+        print("First few rows of the DataFrame:")
+        print(excel_data.head())
+        
+        # Perform further processing or analysis as needed
+        
+        # Write the processed data to an output file if necessary
+
+if __name__ == "__main__":
+    main()
